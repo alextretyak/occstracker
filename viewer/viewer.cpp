@@ -96,23 +96,35 @@ const int LINE_PADDING_RIGHT = mul_by_system_scaling_factor(2);
 const int SIZE_COLUMN_WIDTH = mul_by_system_scaling_factor(70);
 HFONT font;
 
-HWND main_wnd, treeview_wnd;
+HWND main_wnd, treeview_wnd, scrollbar_wnd;
+int scrollbar_width;
 HICON icon_dir_col, icon_dir_exp;
 
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 
 #define RECTARGS(rect) (rect).left, (rect).top, (rect).right-(rect).left, (rect).bottom-(rect).top
 
-RECT calc_treeview_wnd_rect()
+struct TV_SB_WndRects
+{
+    RECT treeview_wnd_rect, scrollbar_wnd_rect;
+};
+TV_SB_WndRects calc_treeview_and_scrollbar_wnd_rects()
 {
     RECT cr;
     GetClientRect(main_wnd, &cr);
-    RECT r = {
+    RECT tr = {
         mul_by_system_scaling_factor(10),
         mul_by_system_scaling_factor(10),
-        cr.right  - mul_by_system_scaling_factor(10),
+        cr.right  - mul_by_system_scaling_factor(10) - scrollbar_width,
         cr.bottom - mul_by_system_scaling_factor(10),
     };
+    RECT sr = {
+        tr.right,
+        tr.top,
+        tr.right + scrollbar_width,
+        tr.bottom
+    };
+    TV_SB_WndRects r = {tr, sr};
     return r;
 }
 
@@ -229,7 +241,15 @@ LRESULT CALLBACK treeview_wnd_proc(HWND hwnd, UINT message, WPARAM wparam, LPARA
         std::vector<DirItem> dir_items;
         fill_dir_items(dir_items, root_new, &root_old, 0);
 
-        int scrollpos = 0;
+        int new_smax = dir_items.size()*LINE_HEIGHT + TREEVIEW_PADDING*2 - 2; // without `- 2` there are artifacts at the bottom of tree view after scrolling to end and scrollbar up button pressed
+        int smin, smax;
+        ScrollBar_GetRange(scrollbar_wnd, &smin, &smax);
+        if (smax != new_smax) {
+            ScrollBar_SetRange(scrollbar_wnd, 0, new_smax, FALSE);
+            PostMessage(main_wnd, WM_SIZE, 0, 0);
+        }
+
+        int scrollpos = ScrollBar_GetPos(scrollbar_wnd);
 
         // Update hover item
         static int treeview_hover_dir_item_index;
@@ -343,15 +363,20 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
     main_wnd = CreateWindow(wcex.lpszClassName, L"occstracker viewer", WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN, CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, NULL, NULL, hInstance, NULL);
     if (!main_wnd) return FALSE;
 
+    auto wr = calc_treeview_and_scrollbar_wnd_rects();
     WNDCLASS wc = {0};
     wc.lpfnWndProc = treeview_wnd_proc;
     wc.hInstance = hInstance;
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     wc.lpszClassName = L"occstracker tree view window class";
     if (!RegisterClass(&wc)) return FALSE;
-    RECT treeview_wnd_rect = calc_treeview_wnd_rect();
-    treeview_wnd = CreateWindowEx(0, wc.lpszClassName, L"", WS_CHILD|WS_VISIBLE, RECTARGS(treeview_wnd_rect), main_wnd, NULL, hInstance, 0);
+    treeview_wnd = CreateWindowEx(0, wc.lpszClassName, L"", WS_CHILD|WS_VISIBLE, RECTARGS(wr.treeview_wnd_rect), main_wnd, NULL, hInstance, 0);
     if (!treeview_wnd) return FALSE;
+
+    scrollbar_wnd = CreateWindowEx(0, L"SCROLLBAR", L"", WS_VISIBLE|SBS_VERT|SBS_SIZEBOXBOTTOMRIGHTALIGN|WS_CHILD, RECTARGS(wr.scrollbar_wnd_rect), main_wnd, NULL, hInstance, 0);
+    if (!scrollbar_wnd) return FALSE;
+    GetClientRect(scrollbar_wnd, &wr.scrollbar_wnd_rect);
+    scrollbar_width = wr.scrollbar_wnd_rect.right - wr.scrollbar_wnd_rect.left;
 
     icon_dir_col = (HICON)LoadImage(hInstance, MAKEINTRESOURCE(IDI_DIR_COLLAPSED), IMAGE_ICON, ICON_SIZE, ICON_SIZE, 0);
     icon_dir_exp = (HICON)LoadImage(hInstance, MAKEINTRESOURCE(IDI_DIR_EXPANDED),  IMAGE_ICON, ICON_SIZE, ICON_SIZE, 0);
@@ -406,16 +431,63 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 //         // TODO: Add any drawing code here...
 //         EndPaint(hWnd, &ps);
 //         break;
+
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
+
     case WM_SIZE:
         {
-        RECT treeview_wnd_rect = calc_treeview_wnd_rect();
-        MoveWindow(treeview_wnd, RECTARGS(treeview_wnd_rect), TRUE);
+        auto wr = calc_treeview_and_scrollbar_wnd_rects();
+        MoveWindow(treeview_wnd, RECTARGS(wr.treeview_wnd_rect), TRUE);
+        MoveWindow(scrollbar_wnd, RECTARGS(wr.scrollbar_wnd_rect), TRUE);
         InvalidateRect(treeview_wnd, NULL, TRUE);
+        SCROLLINFO si = {sizeof(si)};
+        si.fMask = SIF_PAGE;
+        si.nPage = wr.treeview_wnd_rect.bottom - wr.treeview_wnd_rect.top;
+        SetScrollInfo(scrollbar_wnd, SB_CTL, &si, TRUE);
         }
         break;
+
+    case WM_VSCROLL:
+        switch (LOWORD(wParam))
+        {
+        case SB_THUMBTRACK:
+        case SB_THUMBPOSITION: {
+            SCROLLINFO si = {sizeof(si), SIF_TRACKPOS};
+            GetScrollInfo(scrollbar_wnd, SB_CTL, &si);
+            ScrollBar_SetPos(scrollbar_wnd, si.nTrackPos, TRUE);
+            break; }
+        case SB_LINEDOWN:
+            ScrollBar_SetPos(scrollbar_wnd, ScrollBar_GetPos(scrollbar_wnd) + LINE_HEIGHT, TRUE);
+            break;
+        case SB_LINEUP:
+            ScrollBar_SetPos(scrollbar_wnd, ScrollBar_GetPos(scrollbar_wnd) - LINE_HEIGHT, TRUE);
+            break;
+        case SB_PAGEDOWN:
+        case SB_PAGEUP:
+            SCROLLINFO si = {sizeof(si), SIF_PAGE};
+            GetScrollInfo(scrollbar_wnd, SB_CTL, &si);
+            switch (LOWORD(wParam))
+            {
+            case SB_PAGEDOWN:
+                ScrollBar_SetPos(scrollbar_wnd, ScrollBar_GetPos(scrollbar_wnd) + si.nPage/2, TRUE);
+                break;
+            case SB_PAGEUP:
+                ScrollBar_SetPos(scrollbar_wnd, ScrollBar_GetPos(scrollbar_wnd) - si.nPage/2, TRUE);
+                break;
+            }
+            break;
+        }
+
+        InvalidateRect(treeview_wnd, NULL, TRUE);
+        return 0;
+
+    case WM_MOUSEWHEEL:
+        for (int i=0; i<3; i++)
+            SendMessage(main_wnd, WM_VSCROLL, MAKEWPARAM(GET_WHEEL_DELTA_WPARAM(wParam) > 0 ? SB_LINEUP : SB_LINEDOWN, 0),0);
+        break;
+
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
