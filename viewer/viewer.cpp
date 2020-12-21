@@ -4,6 +4,22 @@
 #include "stdafx.h"
 #include "viewer.h"
 
+// [https://blog.softwareverify.com/how-to-make-your-mfc-or-non-mfc-program-support-high-dpi-monitors-the-easy-way/ <- https://www.codeproject.com/Messages/5452471/Re-create-a-dpi-aware-application.aspx <- google:‘codeproject dpiaware windows 7 site:www.codeproject.com’]
+inline int mul_by_system_scaling_factor(int i)
+{
+    static int logpixelsx = 0;
+    if (logpixelsx == 0) {
+        HDC hdc = GetDC(NULL);
+        logpixelsx = GetDeviceCaps(hdc, LOGPIXELSX);
+        ReleaseDC(NULL, hdc);
+    }
+    return i * logpixelsx / 96;
+}
+
+const int FONT_HEIGHT = mul_by_system_scaling_factor(16);
+const int LINE_HEIGHT = FONT_HEIGHT + 2;
+HFONT font;
+
 #define MAX_LOADSTRING 100
 
 // Global Variables:
@@ -33,6 +49,9 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
     LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadString(hInstance, IDC_VIEWER, szWindowClass, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
+
+    LOGFONT lf = {FONT_HEIGHT, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH|FF_SWISS, _T("")};
+    font = CreateFontIndirect(&lf);
 
     // Perform application initialization:
     if (!InitInstance (hInstance, nCmdShow))
@@ -75,7 +94,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hInstance      = hInstance;
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_VIEWER));
     wcex.hCursor        = LoadCursor(NULL, IDC_ARROW);
-    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
+    wcex.hbrBackground  = CreateSolidBrush(RGB(248, 248, 248)); // GetSysColorBrush(COLOR_3DFACE);
     wcex.lpszMenuName   = MAKEINTRESOURCE(IDC_VIEWER);
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
