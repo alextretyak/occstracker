@@ -96,6 +96,7 @@ const int LINE_PADDING_RIGHT = mul_by_system_scaling_factor(2);
 const int SIZE_COLUMN_WIDTH = mul_by_system_scaling_factor(70);
 HFONT font;
 
+HINSTANCE h_instance;
 HWND main_wnd, treeview_wnd, scrollbar_wnd;
 int scrollbar_width;
 HICON icon_dir_col, icon_dir_exp;
@@ -146,6 +147,7 @@ class DirEntry
 {
 public:
     DirEntry *parent = nullptr;
+    const std::wstring *dir_name = nullptr;
     std::map<std::wstring, DirEntry> subdirs;
     std::map<std::wstring, uint64_t> files;
     int64_t size = 0; // total size of files including subdirectories
@@ -170,13 +172,17 @@ public:
         while (dirs_count--) {
             std::wstring name;
             rd(name);
-            subdirs[name].read();
+            auto it = subdirs.emplace(name, DirEntry());
+            it.first->second.parent = this;
+            it.first->second.dir_name = &it.first->first;
+            it.first->second.read();
         }
     }
 } root_old, root_new;
 
 struct DirItem
 {
+    DirEntry *parent;
     const std::wstring *name;
     DirEntry *d, *de_old;
     int64_t delta_size;
@@ -188,7 +194,7 @@ void fill_dir_items(std::vector<DirItem> &all_items, DirEntry &d, DirEntry *de_o
     std::vector<DirItem> items;
     items.reserve(d.subdirs.size() + d.files.size());
     for (auto &&dir : d.subdirs) {
-        DirItem di = {&dir.first, &dir.second, nullptr, dir.second.size, level};
+        DirItem di = {&d, &dir.first, &dir.second, nullptr, dir.second.size, level};
         if (de_old != nullptr) {
             auto it = de_old->subdirs.find(*di.name);
             if (it != de_old->subdirs.end()) {
@@ -199,7 +205,7 @@ void fill_dir_items(std::vector<DirItem> &all_items, DirEntry &d, DirEntry *de_o
         items.push_back(di);
     }
     for (auto &&file : d.files) {
-        DirItem di = {&file.first, nullptr, nullptr, file.second, level};
+        DirItem di = {&d, &file.first, nullptr, nullptr, file.second, level};
         if (de_old != nullptr) {
             auto it = de_old->files.find(*di.name);
             if (it != de_old->files.end())
@@ -323,6 +329,25 @@ LRESULT CALLBACK treeview_wnd_proc(HWND hwnd, UINT message, WPARAM wparam, LPARA
         treeview_hover_dir_item.d->expanded = !treeview_hover_dir_item.d->expanded;
         InvalidateRect(treeview_wnd, NULL, FALSE);
         break;
+
+    case WM_RBUTTONDOWN:
+        if (treeview_hover_dir_item.name != nullptr) {
+            HMENU menu = LoadMenu(h_instance, MAKEINTRESOURCE(IDR_DIR_CONTEXT_MENU));
+            HMENU sub_menu = GetSubMenu(menu, 0);
+            POINT curpos;
+            GetCursorPos(&curpos);
+            auto r = TrackPopupMenu(sub_menu, TPM_LEFTALIGN|TPM_TOPALIGN|TPM_RIGHTBUTTON|TPM_NONOTIFY|TPM_RETURNCMD, curpos.x, curpos.y, 0, treeview_wnd, NULL);
+            if (r != 0)
+                if (r == ID_OPEN_WITH_EXPLORER) {
+                    std::wstring path = *treeview_hover_dir_item.name;
+                    for (DirEntry *d = treeview_hover_dir_item.parent; d != nullptr; d = d->parent)
+                        path = *d->dir_name + L'\\' + path;
+                    ShellExecute(NULL, L"open", path.c_str(), NULL, NULL, SW_SHOWDEFAULT); // [https://stackoverflow.com/a/354922/2692494 <- google:‘winapi open folder with explorer’]
+                }
+            treeview_hover_dir_item.d = nullptr; // to prevent expanding hover item when clicking outside of context menu in order to just close it
+            DestroyMenu(menu);
+        }
+        break;
     }
 
     return DefWindowProc(hwnd, message, wparam, lparam);
@@ -341,6 +366,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
+    h_instance = hInstance;
     WNDCLASSEX wcex;
     wcex.cbSize = sizeof(WNDCLASSEX);
     wcex.style          = CS_HREDRAW | CS_VREDRAW;
@@ -390,6 +416,9 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
     _wfopen_s(&snapshot_file, __wargv[2], L"rb");
     root_new.read();
     fclose(snapshot_file);
+
+    static std::wstring disk = L"C:";
+    root_old.dir_name = root_new.dir_name = &disk;
 
     // Main message loop:
     MSG msg;
