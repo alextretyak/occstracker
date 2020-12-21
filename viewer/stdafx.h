@@ -17,6 +17,13 @@
 #include <malloc.h>
 #include <memory.h>
 #include <tchar.h>
+#include <stdint.h>
 
 
 // TODO: reference additional headers your program requires here
+#include <string>
+#include <map>
+#include <vector>
+#include <algorithm>
+#include <sstream>
+#include <iomanip>
