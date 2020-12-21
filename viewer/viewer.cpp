@@ -97,6 +97,7 @@ const int SIZE_COLUMN_WIDTH = mul_by_system_scaling_factor(70);
 HFONT font;
 
 HWND main_wnd, treeview_wnd;
+HICON icon_dir_col, icon_dir_exp;
 
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 
@@ -266,8 +267,8 @@ LRESULT CALLBACK treeview_wnd_proc(HWND hwnd, UINT message, WPARAM wparam, LPARA
 
                 r.right = r.left;
                 r.left = TREEVIEW_PADDING + d.level * TREEVIEW_LEVEL_OFFSET;
-//                 if (d.d != nullptr && !d.d->subdirs.empty())
-//                     DrawIconEx(hdc, r.left, r.top, d.d->expanded ? icon_dir_exp : icon_dir_col, ICON_SIZE, ICON_SIZE, 0, NULL, DI_NORMAL);
+                if (d.d != nullptr && !d.d->subdirs.empty())
+                    DrawIconEx(hdc, r.left, r.top, d.d->expanded ? icon_dir_exp : icon_dir_col, ICON_SIZE, ICON_SIZE, 0, NULL, DI_NORMAL);
 
                 r.left += ICON_SIZE + LINE_PADDING_LEFT;
                 DrawText(hdc, d.name->c_str(), -1, &r, DT_END_ELLIPSIS);
@@ -281,6 +282,14 @@ LRESULT CALLBACK treeview_wnd_proc(HWND hwnd, UINT message, WPARAM wparam, LPARA
 
     case WM_MOUSEMOVE:
         InvalidateRect(hwnd, NULL, FALSE);
+        break;
+
+    case WM_LBUTTONDOWN:
+        GetCursorPos(&pressed_cur_pos);
+        if (treeview_hover_dir_item.d == nullptr)
+            break;
+        treeview_hover_dir_item.d->expanded = !treeview_hover_dir_item.d->expanded;
+        InvalidateRect(treeview_wnd, NULL, FALSE);
         break;
     }
 
@@ -326,6 +335,9 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
     RECT treeview_wnd_rect = calc_treeview_wnd_rect();
     treeview_wnd = CreateWindowEx(0, wc.lpszClassName, L"", WS_CHILD|WS_VISIBLE, RECTARGS(treeview_wnd_rect), main_wnd, NULL, hInstance, 0);
     if (!treeview_wnd) return FALSE;
+
+    icon_dir_col = (HICON)LoadImage(hInstance, MAKEINTRESOURCE(IDI_DIR_COLLAPSED), IMAGE_ICON, ICON_SIZE, ICON_SIZE, 0);
+    icon_dir_exp = (HICON)LoadImage(hInstance, MAKEINTRESOURCE(IDI_DIR_EXPANDED),  IMAGE_ICON, ICON_SIZE, ICON_SIZE, 0);
 
     ShowWindow(main_wnd, nCmdShow);
 

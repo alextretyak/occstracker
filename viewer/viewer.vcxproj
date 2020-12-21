@@ -96,6 +96,8 @@
     <ResourceCompile Include="viewer.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="icons\dir_collapsed.ico" />
+    <Image Include="icons\dir_expanded.ico" />
     <Image Include="small.ico" />
     <Image Include="viewer.ico" />
   </ItemGroup>

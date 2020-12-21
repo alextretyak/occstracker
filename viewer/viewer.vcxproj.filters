@@ -48,5 +48,11 @@
     <Image Include="viewer.ico">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="icons\dir_collapsed.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="icons\dir_expanded.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>
