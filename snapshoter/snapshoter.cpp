@@ -6,6 +6,20 @@
 inline std::wstring operator/(const std::wstring &d, const std::wstring &f) {return d.back() == L'/' ? d + f : d + L'/' + f;}
 inline std::wstring operator/(const std::wstring &d, const wchar_t      *f) {return d.back() == L'/' ? d + f : d + L'/' + f;}
 
+FILE *snapshot_file;
+
+template <typename Ty> void wr(const Ty &obj)
+{
+    fwrite(&obj, sizeof(Ty), 1, snapshot_file);
+}
+void wr(const std::wstring &s)
+{
+    if (s.size() >= 65536)
+        exit(-1);
+    wr(uint16_t(s.size()));
+    fwrite(s.data(), 2, s.size(), snapshot_file);
+}
+
 class DirEntry
 {
 public:
@@ -13,6 +27,26 @@ public:
     std::map<std::wstring, DirEntry> subdirs;
     std::map<std::wstring, uint64_t> files;
     int64_t size = 0; // total size of files including subdirectories
+
+    void write()
+    {
+        if (files.size() >= 65536 || subdirs.size() >= 65536)
+            exit(-1);
+
+        wr(size);
+
+        wr(uint16_t(files.size()));
+        for (auto &&f : files) {
+            wr(f.first);
+            wr(f.second);
+        }
+
+        wr(uint16_t(subdirs.size()));
+        for (auto &&sd : subdirs) {
+            wr(sd.first);
+            sd.second.write();
+        }
+    }
 } root;
 
 const int64_t min_trackable_file_size = 1024*1024;
@@ -61,17 +95,30 @@ void enum_files_recursively(const std::wstring &dir_name, DirEntry &de)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+    std::wstring disk = L"C:";
+
     ULARGE_INTEGER free_bytes_available_to_caller, total_number_of_bytes;
-    if (!GetDiskFreeSpaceEx(L"C:", &free_bytes_available_to_caller, &total_number_of_bytes, NULL))
+    if (!GetDiskFreeSpaceEx(disk.c_str(), &free_bytes_available_to_caller, &total_number_of_bytes, NULL))
         return -1;
     occupied_bytes = total_number_of_bytes.QuadPart - free_bytes_available_to_caller.QuadPart;
 
     for (int i = 0; i < progress_bar_size; i++)
         std::cout << '.';
     std::cout << '\r';
-
-    enum_files_recursively(L"C:", root);
+    enum_files_recursively(disk.c_str(), root);
     std::cout << '\n';
 
+    time_t t = time(NULL);
+    struct tm tm;
+    localtime_s(&tm, &t);
+    char s[100];
+    strftime(s, sizeof(s), "%Y-%m-%d", &tm);
+    wchar_t fname[100];
+    swprintf_s(fname, L"%c_%S_%.1fGb.snapshot", disk[0], s, free_bytes_available_to_caller.QuadPart / (1024.0 * 1024 * 1024));
+    _wfopen_s(&snapshot_file, fname, L"wb");
+    root.write();
+    fclose(snapshot_file);
+
+    std::cout << "OK\n";
     return 0;
 }
