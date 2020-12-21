@@ -5,6 +5,8 @@ VisualStudioVersion = 12.0.40629.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "snapshoter", "snapshoter\snapshoter.vcxproj", "{0454EBE4-88E8-4E03-8D6A-D110BA8B3A1C}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viewer", "viewer\viewer.vcxproj", "{C26EDD86-11F2-49F9-BA72-51CD6127A1C5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -15,6 +17,10 @@ Global
 		{0454EBE4-88E8-4E03-8D6A-D110BA8B3A1C}.Debug|Win32.Build.0 = Debug|Win32
 		{0454EBE4-88E8-4E03-8D6A-D110BA8B3A1C}.Release|Win32.ActiveCfg = Release|Win32
 		{0454EBE4-88E8-4E03-8D6A-D110BA8B3A1C}.Release|Win32.Build.0 = Release|Win32
+		{C26EDD86-11F2-49F9-BA72-51CD6127A1C5}.Debug|Win32.ActiveCfg = Debug|Win32
+		{C26EDD86-11F2-49F9-BA72-51CD6127A1C5}.Debug|Win32.Build.0 = Debug|Win32
+		{C26EDD86-11F2-49F9-BA72-51CD6127A1C5}.Release|Win32.ActiveCfg = Release|Win32
+		{C26EDD86-11F2-49F9-BA72-51CD6127A1C5}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
