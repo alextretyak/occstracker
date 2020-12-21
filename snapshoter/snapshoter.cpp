@@ -52,9 +52,13 @@ public:
 const int64_t min_trackable_file_size = 1024*1024;
 uint64_t occupied_bytes;
 int progress_bar_size = 64, progress_cur_pos = 0;
+std::wstring cur_dir;
 
 void enum_files_recursively(const std::wstring &dir_name, DirEntry &de)
 {
+    if (dir_name == cur_dir)
+        return;
+
     WIN32_FIND_DATA fd;
     HANDLE h = FindFirstFile((dir_name / L"*.*").c_str(), &fd);
     if (h == INVALID_HANDLE_VALUE) return;
@@ -95,6 +99,12 @@ void enum_files_recursively(const std::wstring &dir_name, DirEntry &de)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+    wchar_t cur_dir_buf[MAX_PATH];
+    GetCurrentDirectory(MAX_PATH, cur_dir_buf);
+    for (wchar_t *c = cur_dir_buf; *c; c++)
+        if (*c == '\\') *c = '/';
+    cur_dir = cur_dir_buf;
+
     std::wstring disk = L"C:";
 
     ULARGE_INTEGER free_bytes_available_to_caller, total_number_of_bytes;
