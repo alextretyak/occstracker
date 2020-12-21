@@ -224,7 +224,7 @@ LRESULT CALLBACK treeview_wnd_proc(HWND hwnd, UINT message, WPARAM wparam, LPARA
         RECT wnd_rect;
         GetWindowRect(treeview_wnd, &wnd_rect);
         if (/*!popup_menu_is_open*/true) {
-            treeview_hover_dir_item.d = nullptr;
+            treeview_hover_dir_item.name = nullptr;
             int item_under_mouse;
             POINT cur_pos;
             GetCursorPos(&cur_pos);
@@ -241,7 +241,7 @@ LRESULT CALLBACK treeview_wnd_proc(HWND hwnd, UINT message, WPARAM wparam, LPARA
             }
         }
         // Draw hover rect
-        if (treeview_hover_dir_item.d != nullptr) {
+        if (treeview_hover_dir_item.name != nullptr) {
             SelectPenAndBrush spb(hdc, RGB(112, 192, 231), RGB(229, 243, 251)); // colors are taken from Windows Explorer
             Rectangle(hdc, TREEVIEW_PADDING + treeview_hover_dir_item.level * TREEVIEW_LEVEL_OFFSET + ICON_SIZE - 1,
                            TREEVIEW_PADDING - scrollpos +  treeview_hover_dir_item_index    * LINE_HEIGHT, width - TREEVIEW_PADDING,
@@ -267,7 +267,7 @@ LRESULT CALLBACK treeview_wnd_proc(HWND hwnd, UINT message, WPARAM wparam, LPARA
 
                 r.right = r.left;
                 r.left = TREEVIEW_PADDING + d.level * TREEVIEW_LEVEL_OFFSET;
-                if (d.d != nullptr && !d.d->subdirs.empty())
+                if (d.d != nullptr && (!d.d->subdirs.empty() || !d.d->files.empty()))
                     DrawIconEx(hdc, r.left, r.top, d.d->expanded ? icon_dir_exp : icon_dir_col, ICON_SIZE, ICON_SIZE, 0, NULL, DI_NORMAL);
 
                 r.left += ICON_SIZE + LINE_PADDING_LEFT;
