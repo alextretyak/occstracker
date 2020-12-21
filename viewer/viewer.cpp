@@ -161,37 +161,49 @@ public:
             subdirs[name].read();
         }
     }
-} root;
+} root_old, root_new;
 
 struct DirItem
 {
     const std::wstring *name;
-    DirEntry *d;
-    int64_t size;
+    DirEntry *d, *de_old;
+    int64_t delta_size;
     int level;
 };
 
-void fill_dir_items(std::vector<DirItem> &all_items, DirEntry &d, int level)
+void fill_dir_items(std::vector<DirItem> &all_items, DirEntry &d, DirEntry *de_old, int level)
 {
     std::vector<DirItem> items;
     items.reserve(d.subdirs.size() + d.files.size());
     for (auto &&dir : d.subdirs) {
-        DirItem di = {&dir.first, &dir.second, dir.second.size, level};
+        DirItem di = {&dir.first, &dir.second, nullptr, dir.second.size, level};
+        if (de_old != nullptr) {
+            auto it = de_old->subdirs.find(*di.name);
+            if (it != de_old->subdirs.end()) {
+                di.de_old = &it->second;
+                di.delta_size -= di.de_old->size;
+            }
+        }
         items.push_back(di);
     }
     for (auto &&file : d.files) {
-        DirItem di = {&file.first, nullptr, file.second, level};
+        DirItem di = {&file.first, nullptr, nullptr, file.second, level};
+        if (de_old != nullptr) {
+            auto it = de_old->files.find(*di.name);
+            if (it != de_old->files.end())
+                di.delta_size -= it->second;
+        }
         items.push_back(di);
     }
 
     std::sort(items.begin(), items.end(), [](const DirItem &a, const DirItem &b) {
-        return a.size > b.size;
+        return a.delta_size > b.delta_size;
     });
 
     for (auto &&di : items) {
         all_items.push_back(di);
         if (di.d != nullptr && di.d->expanded)
-            fill_dir_items(all_items, *di.d, level + 1);
+            fill_dir_items(all_items, *di.d, di.de_old, level + 1);
     }
 }
 
@@ -215,7 +227,7 @@ LRESULT CALLBACK treeview_wnd_proc(HWND hwnd, UINT message, WPARAM wparam, LPARA
         Rectangle(hdc, 0, 0, r.right, r.bottom);}
 
         std::vector<DirItem> dir_items;
-        fill_dir_items(dir_items, root, 0);
+        fill_dir_items(dir_items, root_new, &root_old, 0);
 
         int scrollpos = 0;
 
@@ -263,7 +275,7 @@ LRESULT CALLBACK treeview_wnd_proc(HWND hwnd, UINT message, WPARAM wparam, LPARA
             if (r.bottom >= TREEVIEW_PADDING) { // this check is not only for better performance, but is also to avoid artifacts at the top of tree view after scrollbar down button pressed
                 r.right = width - TREEVIEW_PADDING - LINE_PADDING_RIGHT;
                 r.left = r.right - SIZE_COLUMN_WIDTH;
-                DrawTextA(hdc, separate_thousands(d.size / double(1024 * 1024)).c_str(), -1, &r, DT_RIGHT);
+                DrawTextA(hdc, separate_thousands(d.delta_size / double(1024 * 1024)).c_str(), -1, &r, DT_RIGHT);
 
                 r.right = r.left;
                 r.left = TREEVIEW_PADDING + d.level * TREEVIEW_LEVEL_OFFSET;
@@ -304,6 +316,11 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
+    if (__argc != 3) {
+        MessageBox(NULL, L"Please drag and drop on this executable two snapshot files", NULL, MB_OK);
+        return FALSE;
+    }
+
     WNDCLASSEX wcex;
     wcex.cbSize = sizeof(WNDCLASSEX);
     wcex.style          = CS_HREDRAW | CS_VREDRAW;
@@ -341,8 +358,12 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 
     ShowWindow(main_wnd, nCmdShow);
 
+    // Read snapshots
     _wfopen_s(&snapshot_file, __wargv[1], L"rb");
-    root.read();
+    root_old.read();
+    fclose(snapshot_file);
+    _wfopen_s(&snapshot_file, __wargv[2], L"rb");
+    root_new.read();
     fclose(snapshot_file);
 
     // Main message loop:
