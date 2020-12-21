@@ -332,17 +332,27 @@ LRESULT CALLBACK treeview_wnd_proc(HWND hwnd, UINT message, WPARAM wparam, LPARA
 
     case WM_RBUTTONDOWN:
         if (treeview_hover_dir_item.name != nullptr) {
-            HMENU menu = LoadMenu(h_instance, MAKEINTRESOURCE(IDR_DIR_CONTEXT_MENU));
+            HMENU menu = LoadMenu(h_instance, treeview_hover_dir_item.d != nullptr ? MAKEINTRESOURCE(IDR_DIR_CONTEXT_MENU) : MAKEINTRESOURCE(IDR_FILE_CONTEXT_MENU));
             HMENU sub_menu = GetSubMenu(menu, 0);
             POINT curpos;
             GetCursorPos(&curpos);
             auto r = TrackPopupMenu(sub_menu, TPM_LEFTALIGN|TPM_TOPALIGN|TPM_RIGHTBUTTON|TPM_NONOTIFY|TPM_RETURNCMD, curpos.x, curpos.y, 0, treeview_wnd, NULL);
             if (r != 0)
-                if (r == ID_OPEN_WITH_EXPLORER) {
+                if (r == ID_OPEN_WITH_EXPLORER || r == ID_OPEN_CONTAINING_FOLDER) {
                     std::wstring path = *treeview_hover_dir_item.name;
                     for (DirEntry *d = treeview_hover_dir_item.parent; d != nullptr; d = d->parent)
                         path = *d->dir_name + L'\\' + path;
-                    ShellExecute(NULL, L"open", path.c_str(), NULL, NULL, SW_SHOWDEFAULT); // [https://stackoverflow.com/a/354922/2692494 <- google:‘winapi open folder with explorer’]
+
+                    if (r == ID_OPEN_WITH_EXPLORER)
+                        ShellExecute(NULL, L"open", path.c_str(), NULL, NULL, SW_SHOWDEFAULT); // [https://stackoverflow.com/a/354922/2692494 <- google:‘winapi open folder with explorer’]
+                    else {
+                        // [https://cpp.hotexamples.com/ru/examples/-/-/SHOpenFolderAndSelectItems/cpp-shopenfolderandselectitems-function-examples.html <- google:‘SHOpenFolderAndSelectItems c++’ <- https://stackoverflow.com/questions/13680415/how-to-open-explorer-with-a-specific-file-selected/13680458 <- google:‘winapi open containing folder’]
+                        ITEMIDLIST *pidl = ILCreateFromPath(path.c_str());
+                        if (pidl) {
+                            SHOpenFolderAndSelectItems(pidl, 0, NULL, 0);
+                            ILFree(pidl);
+                        }
+                    }
                 }
             treeview_hover_dir_item.d = nullptr; // to prevent expanding hover item when clicking outside of context menu in order to just close it
             DestroyMenu(menu);
