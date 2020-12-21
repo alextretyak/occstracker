@@ -436,8 +436,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         PostQuitMessage(0);
         break;
 
-    case WM_SIZE:
-        {
+    case WM_SIZE: {
         auto wr = calc_treeview_and_scrollbar_wnd_rects();
         MoveWindow(treeview_wnd, RECTARGS(wr.treeview_wnd_rect), TRUE);
         MoveWindow(scrollbar_wnd, RECTARGS(wr.scrollbar_wnd_rect), TRUE);
@@ -445,9 +444,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         SCROLLINFO si = {sizeof(si)};
         si.fMask = SIF_PAGE;
         si.nPage = wr.treeview_wnd_rect.bottom - wr.treeview_wnd_rect.top;
-        SetScrollInfo(scrollbar_wnd, SB_CTL, &si, TRUE);
+        int smin, smax;
+        ScrollBar_GetRange(scrollbar_wnd, &smin, &smax);
+        if (smax < (int)si.nPage) {
+            EnableWindow(scrollbar_wnd, FALSE);
+            ScrollBar_SetPos(scrollbar_wnd, 0, FALSE);
         }
-        break;
+        else {
+            SetScrollInfo(scrollbar_wnd, SB_CTL, &si, TRUE);
+            EnableWindow(scrollbar_wnd, TRUE);
+            InvalidateRect(scrollbar_wnd, NULL, TRUE);
+        }
+        break; }
 
     case WM_VSCROLL:
         switch (LOWORD(wParam))
@@ -484,8 +492,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         return 0;
 
     case WM_MOUSEWHEEL:
-        for (int i=0; i<3; i++)
-            SendMessage(main_wnd, WM_VSCROLL, MAKEWPARAM(GET_WHEEL_DELTA_WPARAM(wParam) > 0 ? SB_LINEUP : SB_LINEDOWN, 0),0);
+        if (IsWindowEnabled(scrollbar_wnd))
+            for (int i=0; i<3; i++)
+                SendMessage(main_wnd, WM_VSCROLL, MAKEWPARAM(GET_WHEEL_DELTA_WPARAM(wParam) > 0 ? SB_LINEUP : SB_LINEDOWN, 0),0);
         break;
 
     default:
